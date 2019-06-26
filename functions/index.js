@@ -4,6 +4,7 @@
 
 const functions = require("firebase-functions");
 const request = require("request-promise");
+const cron = require('node-cron'); // https://www.npmjs.com/package/node-cron
 const runtimeOpts = { timeoutSeconds: 4, memory: "2GB" };
 const REGION = "asia-east2";
 const LINE_MESSAGING_API = "https://api.line.me/v2/bot/message";
@@ -14,70 +15,20 @@ const LINE_HEADER = {
 };
 const OPENWEATHER_API = "https://api.openweathermap.org/data/2.5/weather/";
 
-function broadcastSETIndex(req, res) {
-  var x = setInterval(function () {
-    const date = new Date();
-    const hourDateTime = date.getHours()
-    if (hourDateTime > 8 || hourDateTime < 19) {
-      console.log("11111")
-      pushSETIndex(req, res, true)
-      console.log("22222")
-    }
-    console.log("333333")
-  }, 1800000)
-}
-
-function pushSETIndex(req, res, isBroadcast) {
-  var options = {
-    uri: 'http://thai-stock.tskyonline.com/Set/GetSet',
-    json: true
-  };
-
-  request.get(options, function (request, response, body) {
-    if (req.method === "POST") {
-      const setValue = body[0]
-      const operator = setValue.changedPrice > 0 ? "+" : "";
-      var message = setValue.code + " " + numberWithCommas(setValue.price.toFixed(2)) + " " + operator + setValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + setValue.changedPercentage.toFixed(2) + ") Volumn " + numberWithCommas(setValue.volumnBaht.toFixed(2)) + " ล้านบาท"
-      if (isBroadcast) {
-        broadcast(res, message)
-      } else {
-        pushMessage(req, message)
-      }
-    }
-  })
-}
-
-function pushSETStock(req, res, stockCode) {
-  console.log('choice Stock -> ' + stockCode)
-  var options = {
-    uri: 'http://thai-stock.tskyonline.com/Stock/GetStock?code=' + stockCode,
-    json: true
-  };
-
-  request.get(options, function (request, response, body) {
-    if (req.method === "POST") {
-      const stockValue = body
-      const operator = stockValue.changedPrice > 0 ? "+" : "";
-      var message = stockValue.code.toUpperCase() + " " + numberWithCommas(stockValue.price.toFixed(2)) + " " + operator + stockValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + stockValue.changedPercentage.toFixed(2) + ") Volumn " + numberWithCommas(stockValue.volumnBaht.toFixed(2)) + " บาท"
-      pushMessage(req, message)
-    }
-  })
-}
-
+//--------------------------------------------------------------
 
 exports.LineBotReply = functions.https.onRequest((req, res) => {
   var reqMessage = req.body.events[0].message.text
 
-  if (reqMessage === 'show auto set') {
+  if (reqMessage.toLowerCase() === 'show auto set') {
     pushMessage(req, 'Automated show SET Index is working')
     broadcastSETIndex(req, res)
-  } else if (reqMessage === 'set') {
+  } else if (reqMessage.toLowerCase() === 'set') {
     console.log('choice SET')
     pushSETIndex(req, res, false)
-  } else if (reqMessage.startsWith('set')) {
+  } else if (reqMessage.toLowerCase().startsWith('set')) {
     console.log('choice Stock')
     const stockCode = reqMessage.split(" ")[1];
-
     pushSETStock(req, res, stockCode)
   } else {
     pushMessage(req, 'Hi ' + reqMessage)
@@ -85,7 +36,44 @@ exports.LineBotReply = functions.https.onRequest((req, res) => {
   return res.status(200).send(req.method);
 });
 
+
+exports.LineBotBroadcast = functions.https.onRequest((req, res) => {
+  const text = req.query.text;
+  if (text !== undefined && text.trim() !== "") {
+    return broadcast(res, text);
+  } else {
+    const ret = { message: "Text not found" };
+    return res.status(400).send(ret);
+  }
+});
+
+// --------------------------------- Push -------------------------------------
+
+const multicast = async (res, uIds, msg) => {
+  await request.post({
+    uri: `${LINE_MESSAGING_API}/multicast`,
+    headers: LINE_HEADER,
+    body: JSON.stringify({
+      to: uIds,
+      messages: [{ type: "text", text: msg }]
+    })
+  });
+  return res.status(200).send({ message: `Multicast: ${msg}` });
+};
+
+const broadcast = async (res, msg) => {
+  return request.post({
+    uri: `${LINE_MESSAGING_API}/broadcast`,
+    headers: LINE_HEADER,
+    body: JSON.stringify({
+      messages: [{ type: "text", text: msg }]
+    })
+  })
+  // return res.status(200).send({ message: `Broadcast: ${msg}` });
+};
+
 const pushMessage = (req, message) => {
+  console.log("push message token -> " + req.body.events[0].replyToken)
   return request.post({
     uri: `${LINE_MESSAGING_API}/reply`,
     headers: LINE_HEADER,
@@ -107,39 +95,54 @@ const reply = bodyResponse => {
   });
 };
 
-exports.LineBotBroadcast = functions.region(REGION).runWith(runtimeOpts).https.onRequest((req, res) => {
-  const text = req.query.text;
-  if (text !== undefined && text.trim() !== "") {
-    return broadcast(res, text);
-  } else {
-    const ret = { message: "Text not found" };
-    return res.status(400).send(ret);
-  }
-});
+//----------------------------- Function ---------------------------------
 
-const multicast = async (res, uIds, msg) => {
-  await request.post({
-    uri: `${LINE_MESSAGING_API}/multicast`,
-    headers: LINE_HEADER,
-    body: JSON.stringify({
-      to: uIds,
-      messages: [{ type: "text", text: msg }]
-    })
-  });
-  return res.status(200).send({ message: `Multicast: ${msg}` });
-};
+function pushSETIndex(req, res, isBroadcast) {
+  var options = {
+    uri: 'http://thai-stock.tskyonline.com/Set/GetSet',
+    json: true
+  };
 
-const broadcast = async (res, msg) => {
-  await request.post({
-    uri: `${LINE_MESSAGING_API}/broadcast`,
-    headers: LINE_HEADER,
-    body: JSON.stringify({
-      messages: [{ type: "text", text: msg }]
-    })
-  });
-  return res.status(200).send({ message: `Broadcast: ${msg}` });
-};
+  request.get(options, function (request, response, body) {
+    if (req.method === "POST") {
+      const setValue = body[0]
+      const operator = setValue.changedPrice > 0 ? "+" : "";
+      var message = "🇹🇭 " + setValue.code + " " + numberWithCommas(setValue.price.toFixed(2)) + " " + operator + setValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + setValue.changedPercentage.toFixed(2) + "%) Volumn " + numberWithCommas(setValue.volumnBaht.toFixed(2)) + " ล้านบาท"
+      if (isBroadcast) {
+        broadcast(res, message)
+      } else {
+        pushMessage(req, message)
+      }
+    }
+  })
+}
+
+function pushSETStock(req, res, stockCode) {
+  console.log('choice Stock -> ' + stockCode)
+  var options = {
+    uri: 'http://thai-stock.tskyonline.com/Stock/GetStock?code=' + stockCode,
+    json: true
+  };
+
+  request.get(options, function (request, response, body) {
+    if (req.method === "POST") {
+      const stockValue = body
+      const operator = stockValue.changedPrice > 0 ? "+" : "";
+      var message = "🇹🇭 " + stockValue.code.toUpperCase() + " " + numberWithCommas(stockValue.price.toFixed(2)) + " " + operator + stockValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + stockValue.changedPercentage.toFixed(2) + "%) Volumn " + numberWithCommas(stockValue.volumnBaht.toFixed(2)) + " บาท"
+      pushMessage(req, message)
+    }
+  })
+}
 
 function numberWithCommas(x) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
+
+function broadcastSETIndex(req, res) {
+  var task = cron.schedule('1,30 9-17 * * 1-5', () => {
+    pushSETIndex(req, res, true)
+  })
+  task.start()
+}
+
+//------------------------------------------------------------------------------
