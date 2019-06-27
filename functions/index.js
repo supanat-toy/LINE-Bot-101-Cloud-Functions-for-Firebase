@@ -37,7 +37,7 @@ exports.LineBotReply = functions.https.onRequest((req, res) => {
 });
 
 
-exports.LineBotBroadcast = functions.https.onRequest((req, res) => {
+exports.LineBotBroadcast = functions.region(REGION).runWith(runtimeOpts).https.onRequest((req, res) => {
   const text = req.query.text;
   if (text !== undefined && text.trim() !== "") {
     return broadcast(res, text);
@@ -68,7 +68,7 @@ const broadcast = async (res, msg) => {
     body: JSON.stringify({
       messages: [{ type: "text", text: msg }]
     })
-  })
+  });
   // return res.status(200).send({ message: `Broadcast: ${msg}` });
 };
 
@@ -106,8 +106,14 @@ function pushSETIndex(req, res, isBroadcast) {
   request.get(options, function (request, response, body) {
     if (req.method === "POST") {
       const setValue = body[0]
-      const operator = setValue.changedPrice > 0 ? "+" : "";
-      var message = "🇹🇭 " + setValue.code + " " + numberWithCommas(setValue.price.toFixed(2)) + " " + operator + setValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + setValue.changedPercentage.toFixed(2) + "%) Volumn " + numberWithCommas(setValue.volumnBaht.toFixed(2)) + " ล้านบาท"
+      const operator = setValue.changedPrice > 0 ? "+" : ""
+      var message = "🇹🇭 " + setValue.code + " " 
+      message = message + numberWithCommas(setValue.price.toFixed(2)) + " " 
+      message = message + operator 
+      message = message + setValue.changedPrice.toFixed(2) + " จุด \n" 
+      message = message + "(" + operator + setValue.changedPercentage.toFixed(2) + "%) Volumn " 
+      message = message + numberWithCommas(setValue.volumnBaht.toFixed(2)) + " ล้านบาท \n"
+      message = message + "อ้างอิง: "+ setValue.references.toString()
       if (isBroadcast) {
         broadcast(res, message)
       } else {
@@ -128,7 +134,13 @@ function pushSETStock(req, res, stockCode) {
     if (req.method === "POST") {
       const stockValue = body
       const operator = stockValue.changedPrice > 0 ? "+" : "";
-      var message = "🇹🇭 " + stockValue.code.toUpperCase() + " " + numberWithCommas(stockValue.price.toFixed(2)) + " " + operator + stockValue.changedPrice.toFixed(2) + " จุด \n" + "(" + operator + stockValue.changedPercentage.toFixed(2) + "%) Volumn " + numberWithCommas(stockValue.volumnBaht.toFixed(2)) + " บาท"
+      var message = "🇹🇭 " + stockValue.code.toUpperCase() + " " 
+      message = message + numberWithCommas(stockValue.price.toFixed(2)) + " " 
+      message = message + operator 
+      message = message + stockValue.changedPrice.toFixed(2) + " จุด \n" 
+      message = message + "(" + operator + stockValue.changedPercentage.toFixed(2) + "%) Volumn " 
+      message = message + numberWithCommas(stockValue.volumnBaht.toFixed(2)) + " บาท \n"
+      message = message + "อ้างอิง: "+ stockValue.references.toString()
       pushMessage(req, message)
     }
   })
@@ -139,10 +151,27 @@ function numberWithCommas(x) {
 }
 
 function broadcastSETIndex(req, res) {
-  var task = cron.schedule('1,30 9-17 * * 1-5', () => {
-    pushSETIndex(req, res, true)
+  // var task = cron.schedule('5 */5 * * * *', () => {
+  //   const date = new Date();
+  //   const hourDateTime = date.getHours()
+  //   console.log("222 -> " + hourDateTime + " - " + date.getMinutes())
+  // })
+  // // task.destroy()
+  // task.start()
+
+  var task = cron.schedule('1 1 */1 * * 1,2,3,4,5', () => {
+    const date = new Date();
+    const hourDateTime = date.getHours()
+    // if (hourDateTime > 9 || hourDateTime < 17) {
+      pushSETIndex(req, res, true)
+    // }
   })
   task.start()
+
+  // var task = cron.schedule('0 1,30 9-17 * * 1-5', () => {
+  //   pushSETIndex(req, res, true)
+  // })
+  // task.start()
 }
 
 //------------------------------------------------------------------------------
