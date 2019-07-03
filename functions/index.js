@@ -107,13 +107,13 @@ function pushSETIndex(req, res, isBroadcast) {
     if (req.method === "POST") {
       const setValue = body[0]
       const operator = setValue.changedPrice > 0 ? "+" : ""
-      var message = "🇹🇭 " + setValue.code + " " 
-      message = message + numberWithCommas(setValue.price.toFixed(2)) + " " 
-      message = message + operator 
-      message = message + setValue.changedPrice.toFixed(2) + " จุด \n" 
-      message = message + "(" + operator + setValue.changedPercentage.toFixed(2) + "%) Volumn " 
+      var message = "🇹🇭 " + setValue.code + " "
+      message = message + numberWithCommas(setValue.price.toFixed(2)) + " "
+      message = message + operator
+      message = message + setValue.changedPrice.toFixed(2) + " จุด \n"
+      message = message + "(" + operator + setValue.changedPercentage.toFixed(2) + "%) Volumn "
       message = message + numberWithCommas(setValue.volumnBaht.toFixed(2)) + " ล้านบาท \n"
-      message = message + "อ้างอิง: "+ setValue.references.toString()
+      message = message + "อ้างอิง: " + setValue.references.toString()
       if (isBroadcast) {
         broadcast(res, message)
       } else {
@@ -134,13 +134,13 @@ function pushSETStock(req, res, stockCode) {
     if (req.method === "POST") {
       const stockValue = body
       const operator = stockValue.changedPrice > 0 ? "+" : "";
-      var message = "🇹🇭 " + stockValue.code.toUpperCase() + " " 
-      message = message + numberWithCommas(stockValue.price.toFixed(2)) + " " 
-      message = message + operator 
-      message = message + stockValue.changedPrice.toFixed(2) + " จุด \n" 
-      message = message + "(" + operator + stockValue.changedPercentage.toFixed(2) + "%) Volumn " 
+      var message = "🇹🇭 " + stockValue.code.toUpperCase() + " "
+      message = message + numberWithCommas(stockValue.price.toFixed(2)) + " "
+      message = message + operator
+      message = message + stockValue.changedPrice.toFixed(2) + " จุด \n"
+      message = message + "(" + operator + stockValue.changedPercentage.toFixed(2) + "%) Volumn "
       message = message + numberWithCommas(stockValue.volumnBaht.toFixed(2)) + " บาท \n"
-      message = message + "อ้างอิง: "+ stockValue.references.toString()
+      message = message + "อ้างอิง: " + stockValue.references.toString()
       pushMessage(req, message)
     }
   })
@@ -159,12 +159,16 @@ function broadcastSETIndex(req, res) {
   // // task.destroy()
   // task.start()
 
-  var task = cron.schedule('1 1 */1 * * 1,2,3,4,5', () => {
+  // var task = cron.schedule('1 1 */1 * * 1,2,3,4,5', () => {
+
+  var task = cron.schedule('1 1 */1 * * */1,2,3,4,5', () => {
     const date = new Date();
-    const hourDateTime = date.getHours()
-    // if (hourDateTime > 9 || hourDateTime < 17) {
+    const hourDateTime = date.getHours() + 7
+    console.log("hourDateTime --> " + hourDateTime)
+    if (hourDateTime >= 9 && hourDateTime <= 17) {
+      console.log("push set boardcast")
       pushSETIndex(req, res, true)
-    // }
+    }
   })
   task.start()
 
@@ -175,3 +179,6 @@ function broadcastSETIndex(req, res) {
 }
 
 //------------------------------------------------------------------------------
+
+// command
+// firebase deploy --only functions
