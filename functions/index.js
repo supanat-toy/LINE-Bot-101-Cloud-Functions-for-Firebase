@@ -161,7 +161,7 @@ function broadcastSETIndex(req, res) {
 
   // var task = cron.schedule('1 1 */1 * * 1,2,3,4,5', () => {
 
-  var task = cron.schedule('1 1 */1 * * */1,2,3,4,5', () => {
+  var task = cron.schedule('1 1 */1 * * */1,*/2,*/3,*/4,*/5', () => {
     const date = new Date();
     const hourDateTime = date.getHours() + 7
     console.log("hourDateTime --> " + hourDateTime)
